@@ -24,7 +24,7 @@ func Generate(domain string) ([]Variation, error) {
 	}
 
 	var result []Variation
-	for _, g := range generators.All() {
+	for _, g := range generators.All {
 		kind, variants := g(domain)
 		for _, variant := range variants {
 			result = append(result, Variation{
