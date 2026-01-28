@@ -84,7 +84,7 @@ vars, err := sqarol.Generate("https://symbolsecurity.com/path")
 
 ### `Generate(domain string) ([]Variation, error)`
 
-Normalizes the input domain and runs all fuzzing techniques against it, returning the generated variations.
+Normalizes the input domain and runs all fuzzing techniques against it, returning the generated variations. The domain must be an ASCII hostname or a full URL (the hostname is extracted automatically). Internationalized (non-ASCII) domain names are not supported and will return an error.
 
 ### `Variation`
 

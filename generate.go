@@ -12,7 +12,6 @@ import (
 
 	"github.com/symbolsecurity/sqarol/attributes"
 	"github.com/symbolsecurity/sqarol/generators"
-	"golang.org/x/net/idna"
 )
 
 // Generate normalizes the given domain and runs every registered
@@ -66,14 +65,23 @@ func normalize(domain string) (string, error) {
 		return "", errors.New("length for domain name is greater than 253")
 	}
 
-	encdomain, err := idna.ToASCII(ndomain)
-	if err != nil {
+	if !isASCII(ndomain) {
 		return "", errors.New("invalid domain name")
 	}
 
-	if !fqdn.MatchString(encdomain) {
+	if !fqdn.MatchString(ndomain) {
 		return "", errors.New("invalid domain name")
 	}
 
 	return ndomain, nil
+}
+
+// isASCII reports whether s contains only ASCII characters.
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > 127 {
+			return false
+		}
+	}
+	return true
 }
