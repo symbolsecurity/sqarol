@@ -117,32 +117,6 @@ type Variation struct {
 | `inflect` | Generates plural/singular forms of the domain name |
 | `complete-with-tld` | Splits name parts that end with a known TLD string |
 
-## Project Structure
+## License
 
-```
-sqarol/
-├── cmd/
-│   └── main.go          # CLI entry point
-├── generate.go          # Public API: Generate() and domain normalization
-├── variation.go         # Variation type definition
-├── generators/          # Domain variation algorithms
-│   ├── all.go           # Fn type and All() registry
-│   ├── omission.go
-│   ├── transposition.go
-│   ├── vowelswap.go
-│   ├── hyphenation.go
-│   ├── repetition.go
-│   ├── extraletter.go
-│   ├── prefix.go
-│   ├── suffix.go
-│   ├── subdomain.go
-│   ├── tldswap.go
-│   ├── tldcompletion.go
-│   ├── typotrick.go
-│   ├── phonetic.go
-│   ├── inflect.go
-│   └── tld.go           # TLD catalog
-└── attributes/          # Variation scoring
-    ├── levenshtein.go   # Edit distance computation
-    └── effectiveness.go # Visual deceptiveness scoring
-```
+This project is licensed under the [MIT License](LICENSE).
