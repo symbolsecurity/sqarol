@@ -1,6 +1,6 @@
 # sqarol
 
-A Go library and CLI tool designed to help cybersecurity analysts manually monitor lookalike domains. Given a legitimate domain name, it produces hundreds of plausible look-alike variations that attackers might register for phishing, brand impersonation, or credential harvesting. Each variation is annotated with the generation technique, Levenshtein edit distance, and a visual deceptiveness score.
+A Go library and CLI tool designed to help cybersecurity analysts manually monitor lookalike domains. Given a legitimate domain name, it produces hundreds of plausible look-alike variations that attackers might register for phishing, brand impersonation, or credential harvesting. Each variation is annotated with the generation technique, Levenshtein edit distance, and a visual deceptiveness score. The CLI can also check the most effective variations against live DNS and WHOIS data to determine which are registered, who owns them, and whether they appear to be parked.
 
 For automated, continuous domain threat monitoring, check out [Symbol Security's Domain Threat Alerts](https://symbolsecurity.com/domain-threat-alerts).
 
