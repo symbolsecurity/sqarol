@@ -4,7 +4,7 @@ A Go library and CLI tool designed to help cybersecurity analysts manually monit
 
 For automated, continuous domain threat monitoring, check out [Symbol Security's Domain Threat Alerts](https://symbolsecurity.com/domain-threat-alerts).
 
-[![asciicast](https://asciinema.org/a/qWUGhX0nyJqdD1rq.svg)](https://asciinema.org/a/qWUGhX0nyJqdD1rq)
+![sqarol demo](demo.gif)
 
 ## Installation
 
