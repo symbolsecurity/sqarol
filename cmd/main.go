@@ -1,40 +1,43 @@
-// sqarol is a command-line tool that generates domain typosquatting
-// variations for a given domain name. It prints each variation with
-// its generation technique, the look-alike domain, the Levenshtein
-// edit distance, and a visual deceptiveness score.
+// sqarol is a command-line tool for domain typosquatting analysis.
 //
 // Usage:
 //
-//	sqarol <domain>
+//	sqarol generate <domain>
+//	sqarol check <domain> [-n count]
 //	sqarol -h | --help
 package main
 
 import (
 	"fmt"
 	"os"
-
-	"github.com/symbolsecurity/sqarol"
 )
 
-// main parses the command-line arguments and generates typosquatting
-// variations for the provided domain.
 func main() {
 	if len(os.Args) < 2 || os.Args[1] == "-h" || os.Args[1] == "--help" {
-		fmt.Fprintln(os.Stderr, "usage: sqarol <domain>")
-		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "Generate typosquatting domain variations for the given domain.")
-		fmt.Fprintln(os.Stderr, "Each variation is printed with its technique, variant, edit distance, and effectiveness score.")
+		printUsage()
 		os.Exit(0)
 	}
 
-	domain := os.Args[1]
-	variations, err := sqarol.Generate(domain)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+	switch os.Args[1] {
+	case "generate":
+		runGenerate(os.Args[2:])
+	case "check":
+		runCheck(os.Args[2:])
+	default:
+		fmt.Fprintf(os.Stderr, "error: unknown command %q\n\n", os.Args[1])
+		printUsage()
 		os.Exit(1)
 	}
+}
 
-	for _, v := range variations {
-		fmt.Printf("%-20s %-40s dist=%-3d eff=%.2f\n", v.Kind, v.Variant, v.Distance, v.Effectiveness)
-	}
+func printUsage() {
+	fmt.Fprintln(os.Stderr, "usage: sqarol <command> [arguments]")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Commands:")
+	fmt.Fprintln(os.Stderr, "  generate <domain>            Generate typosquatting domain variations")
+	fmt.Fprintln(os.Stderr, "  check <domain> [-n count]    Check status of top N most effective variations")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Options:")
+	fmt.Fprintln(os.Stderr, "  -n count   Number of top variations to check (default: 100)")
+	fmt.Fprintln(os.Stderr, "  -h         Show this help message")
 }

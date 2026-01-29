@@ -21,33 +21,51 @@ go install github.com/symbolsecurity/sqarol/cmd@latest
 ## CLI
 
 ```
-sqarol <domain>
-sqarol -h | --help
+sqarol <command> [arguments]
+
+Commands:
+  generate <domain>            Generate typosquatting domain variations
+  check <domain> [-n count]    Check status of top N most effective variations
+
+Options:
+  -n count   Number of top variations to check (default: 100)
+  -h         Show help
 ```
 
-Use `-h` or `--help` to print usage information:
+### generate
+
+Generates all typosquatting variations for a domain, sorted by effectiveness (highest first).
 
 ```
-$ sqarol --help
-usage: sqarol <domain>
-
-Generate typosquatting domain variations for the given domain.
-Each variation is printed with its technique, variant, edit distance, and effectiveness score.
-```
-
-Example:
-
-```
-$ sqarol symbolsecurity.com
-omission             ymbolsecurity.com                        dist=1   eff=0.69
-omission             smbolsecurity.com                        dist=1   eff=0.69
-transposition        ysmbolsecurity.com                       dist=2   eff=0.50
-typo-trick           5ymb0l5ecurity.c0rn                     dist=9   eff=0.26
-phonetic             zymbolzecurity.com                       dist=2   eff=0.50
+$ sqarol generate symbolsecurity.com
+KIND                 VARIANT                            DISTANCE  EFFECTIVENESS
+----                 -------                            --------  -------------
+typo-trick           symbo1security.com                 1         0.95
+phonetic             symbolsekurity.com                 1         0.79
+vowel-swap           symbolsocurity.com                 1         0.79
 ...
+
+Total: 467 variations
 ```
 
-Each line shows the technique name, the generated variant, the Levenshtein edit distance, and the visual deceptiveness score.
+### check
+
+Generates variations, takes the top N by effectiveness, and checks each one for registration status, WHOIS owner, A records, MX records, and parking detection. Checks run concurrently.
+
+```
+$ sqarol check symbolsecurity.com -n 5
+Checking 5 variations...
+
+#  VARIANT             REGISTERED  OWNER  A   MX  PARKED
+-  -------             ----------  -----  -   --  ------
+1  symbo1security.com  no          -      no  no  no
+2  symbolsocurity.com  no          -      no  no  no
+3  symbolsekurity.com  no          -      no  no  no
+4  sympolsecurity.com  no          -      no  no  no
+5  symbolsecuridy.com  no          -      no  no  no
+
+Checked: 5/467 variations
+```
 
 ## Library Usage
 
@@ -86,6 +104,22 @@ vars, err := sqarol.Generate("https://symbolsecurity.com/path")
 
 Normalizes the input domain and runs all fuzzing techniques against it, returning the generated variations. The domain must be an ASCII hostname or a full URL (the hostname is extracted automatically). Internationalized (non-ASCII) domain names are not supported and will return an error.
 
+### `Check(ctx context.Context, domain string) (*DomainCheck, error)`
+
+Queries DNS and WHOIS to determine whether a domain is registered, who owns it, whether it has A and MX records, and whether it appears to be parked. Registration is determined by the presence of NS records (the most reliable signal). Parking detection uses known parking nameserver suffixes and IP address prefixes. WHOIS is queried separately to extract the registrant owner, with automatic referral following for richer results. Concurrent WHOIS connections are throttled to avoid rate-limiting.
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+check, err := sqarol.Check(ctx, "example.com")
+// check.IsRegistered   -> true
+// check.Owner          -> "Internet Assigned Numbers Authority"
+// check.HasARecords    -> true
+// check.HasMXRecords   -> false
+// check.IsParked       -> false
+```
+
 ### `Variation`
 
 ```go
@@ -95,6 +129,19 @@ type Variation struct {
     Kind          string  `json:"kind"`           // Algorithm that produced this variation
     Distance      int     `json:"distance"`       // Levenshtein distance from original
     Effectiveness float64 `json:"effectiveness"`  // Visual deceptiveness score (0.0 - 1.0)
+}
+```
+
+### `DomainCheck`
+
+```go
+type DomainCheck struct {
+    Domain       string `json:"domain"`                    // Queried domain name
+    IsRegistered bool   `json:"is_registered"`             // Whether the domain is registered (via NS lookup)
+    Owner        string `json:"owner,omitempty"`           // Registrant from WHOIS, if available
+    HasARecords  bool   `json:"has_a_records"`             // Whether the domain has IPv4 address records
+    HasMXRecords bool   `json:"has_mx_records"`            // Whether the domain has mail exchange records
+    IsParked     bool   `json:"is_parked"`                 // Whether the domain appears to be parked
 }
 ```
 
