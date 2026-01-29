@@ -44,13 +44,3 @@ func Levenshtein(a, b string) int {
 
 	return prev[lb]
 }
-
-func min(vals ...int) int {
-	m := vals[0]
-	for _, v := range vals[1:] {
-		if v < m {
-			m = v
-		}
-	}
-	return m
-}

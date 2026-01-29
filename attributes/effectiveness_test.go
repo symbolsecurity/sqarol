@@ -76,7 +76,7 @@ func TestEffectiveness(t *testing.T) {
 	}
 }
 
-func TestEditDistanceScore(t *testing.T) {
+func Test_editDistanceScore(t *testing.T) {
 	cases := []struct {
 		distance int
 		expected float64
@@ -89,14 +89,14 @@ func TestEditDistanceScore(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		got := EditDistanceScore(tc.distance)
+		got := editDistanceScore(tc.distance)
 		if math.Abs(got-tc.expected) > 0.001 {
-			t.Errorf("EditDistanceScore(%d) = %f, expected %f", tc.distance, got, tc.expected)
+			t.Errorf("editDistanceScore(%d) = %f, expected %f", tc.distance, got, tc.expected)
 		}
 	}
 }
 
-func TestLengthRatioScore(t *testing.T) {
+func Test_lengthRatioScore(t *testing.T) {
 	cases := []struct {
 		a, b     string
 		expected float64
@@ -108,14 +108,14 @@ func TestLengthRatioScore(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		got := LengthRatioScore(tc.a, tc.b)
+		got := lengthRatioScore(tc.a, tc.b)
 		if math.Abs(got-tc.expected) > 0.001 {
-			t.Errorf("LengthRatioScore(%q, %q) = %f, expected %f", tc.a, tc.b, got, tc.expected)
+			t.Errorf("lengthRatioScore(%q, %q) = %f, expected %f", tc.a, tc.b, got, tc.expected)
 		}
 	}
 }
 
-func TestCharClassScore(t *testing.T) {
+func Test_charClassScore(t *testing.T) {
 	cases := []struct {
 		name     string
 		original string
@@ -129,16 +129,16 @@ func TestCharClassScore(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := CharClassScore(tc.original, tc.variant)
+			got := charClassScore(tc.original, tc.variant)
 			if math.Abs(got-tc.expected) > 0.001 {
-				t.Errorf("CharClassScore(%q, %q) = %f, expected %f",
+				t.Errorf("charClassScore(%q, %q) = %f, expected %f",
 					tc.original, tc.variant, got, tc.expected)
 			}
 		})
 	}
 }
 
-func TestVisualSimilarityScore(t *testing.T) {
+func Test_visualSimilarityScore(t *testing.T) {
 	cases := []struct {
 		name     string
 		original string
@@ -178,9 +178,9 @@ func TestVisualSimilarityScore(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := VisualSimilarityScore(tc.original, tc.variant)
+			got := visualSimilarityScore(tc.original, tc.variant)
 			if got < tc.minScore || got > tc.maxScore {
-				t.Errorf("VisualSimilarityScore(%q, %q) = %.4f, expected in [%.2f, %.2f]",
+				t.Errorf("visualSimilarityScore(%q, %q) = %.4f, expected in [%.2f, %.2f]",
 					tc.original, tc.variant, got, tc.minScore, tc.maxScore)
 			}
 		})

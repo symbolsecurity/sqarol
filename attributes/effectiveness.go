@@ -20,10 +20,10 @@ import (
 //   - Character class preservation (10%): variants that stay
 //     all-alphabetic (no digits or symbols introduced) are subtler.
 func Effectiveness(original, variant string, distance int) float64 {
-	ed := EditDistanceScore(distance)
-	lr := LengthRatioScore(original, variant)
-	vs := VisualSimilarityScore(original, variant)
-	cc := CharClassScore(original, variant)
+	ed := editDistanceScore(distance)
+	lr := lengthRatioScore(original, variant)
+	vs := visualSimilarityScore(original, variant)
+	cc := charClassScore(original, variant)
 
 	score := ed*0.40 + lr*0.20 + vs*0.30 + cc*0.10
 
@@ -31,10 +31,10 @@ func Effectiveness(original, variant string, distance int) float64 {
 	return math.Max(0, math.Min(1, score))
 }
 
-// EditDistanceScore returns a value in (0, 1] that is higher when
+// editDistanceScore returns a value in (0, 1] that is higher when
 // the Levenshtein distance is small. A distance of 1 yields 1.0;
 // larger distances decay proportionally.
-func EditDistanceScore(distance int) float64 {
+func editDistanceScore(distance int) float64 {
 	if distance <= 0 {
 		return 0
 	}
@@ -42,9 +42,9 @@ func EditDistanceScore(distance int) float64 {
 	return 1.0 / float64(distance)
 }
 
-// LengthRatioScore returns 1.0 when both strings have the same length
+// lengthRatioScore returns 1.0 when both strings have the same length
 // and decreases as the length difference grows.
-func LengthRatioScore(a, b string) float64 {
+func lengthRatioScore(a, b string) float64 {
 	la := float64(len(a))
 	lb := float64(len(b))
 
@@ -55,10 +55,10 @@ func LengthRatioScore(a, b string) float64 {
 	return math.Min(la, lb) / math.Max(la, lb)
 }
 
-// VisualSimilarityScore returns a value in [0, 1] that is higher when
+// visualSimilarityScore returns a value in [0, 1] that is higher when
 // the differences between original and variant involve visually
 // confusable character pairs.
-func VisualSimilarityScore(original, variant string) float64 {
+func visualSimilarityScore(original, variant string) float64 {
 	// confusables is a list of character-pair substitutions that look
 	// nearly identical in common fonts. Each entry is [original, replacement].
 	confusables := [][]string{
@@ -143,10 +143,10 @@ func VisualSimilarityScore(original, variant string) float64 {
 	return score
 }
 
-// CharClassScore returns 1.0 if the variant preserves the same
+// charClassScore returns 1.0 if the variant preserves the same
 // character classes as the original (no new digits or symbols
 // introduced), and 0.0 if new character classes appear.
-func CharClassScore(original, variant string) float64 {
+func charClassScore(original, variant string) float64 {
 	origHasDigit := false
 	origHasSymbol := false
 
