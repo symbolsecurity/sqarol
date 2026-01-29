@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-sqarol
+/sqarol
 
 # Test binary
 *.test

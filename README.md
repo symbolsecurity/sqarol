@@ -17,7 +17,7 @@ go get github.com/symbolsecurity/sqarol
 As a CLI tool:
 
 ```
-go install github.com/symbolsecurity/sqarol/cmd@latest
+go install github.com/symbolsecurity/sqarol/cmd/sqarol@latest
 ```
 
 ## CLI
