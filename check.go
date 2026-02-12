@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -61,6 +63,16 @@ var parkingIPPrefixes = []string{
 	"185.53.179.",
 }
 
+// MXRecord holds a resolved mail exchange record.
+type MXRecord struct {
+	// Host is the MX hostname (without trailing dot).
+	Host string `json:"host"`
+	// Pref is the MX preference value (lower = higher priority).
+	Pref uint16 `json:"pref"`
+	// IPs contains the resolved IPv4 addresses of the MX host.
+	IPs []string `json:"ips,omitempty"`
+}
+
 // DomainCheck holds the results of checking a domain's registration
 // and DNS status.
 type DomainCheck struct {
@@ -76,6 +88,10 @@ type DomainCheck struct {
 	HasARecords bool `json:"has_a_records"`
 	// HasMXRecords indicates whether the domain has mail exchange records.
 	HasMXRecords bool `json:"has_mx_records"`
+	// ARecords contains the resolved IPv4 addresses for the domain.
+	ARecords []string `json:"a_records,omitempty"`
+	// MXRecords contains the resolved mail exchange records with their IPs.
+	MXRecords []MXRecord `json:"mx_records,omitempty"`
 	// IsParked indicates whether the domain appears to be parked,
 	// based on known parking nameservers and IP addresses.
 	IsParked bool `json:"is_parked"`
@@ -121,11 +137,52 @@ func Check(ctx context.Context, domain string) (*DomainCheck, error) {
 			}
 		}
 	}
+	check.ARecords = ipv4s
 
 	// Look up MX records.
 	mxs, err := resolver.LookupMX(ctx, domain)
 	if err == nil && len(mxs) > 0 {
 		check.HasMXRecords = true
+
+		// Build MXRecord slice and resolve each MX host to IPv4 addresses in parallel.
+		mxRecords := make([]MXRecord, len(mxs))
+		var wg sync.WaitGroup
+		for i, mx := range mxs {
+			mxRecords[i] = MXRecord{
+				Host: strings.TrimSuffix(mx.Host, "."),
+				Pref: mx.Pref,
+			}
+		}
+
+		// Resolve each MX host to IPv4 addresses in parallel.
+		for i := range mxRecords {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				ips, err := resolver.LookupHost(ctx, mxRecords[idx].Host)
+				if err == nil {
+					for _, ip := range ips {
+						if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
+							mxRecords[idx].IPs = append(mxRecords[idx].IPs, ip)
+						}
+					}
+				}
+			}(i)
+		}
+		wg.Wait()
+
+		// Sort by Pref ascending.
+		slices.SortFunc(mxRecords, func(a, b MXRecord) int {
+			if a.Pref < b.Pref {
+				return -1
+			}
+			if a.Pref > b.Pref {
+				return 1
+			}
+			return 0
+		})
+
+		check.MXRecords = mxRecords
 	}
 
 	// Detect parking from NS hostnames and A record IPs.
