@@ -6,6 +6,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"text/tabwriter"
 	"time"
@@ -87,8 +88,8 @@ func runCheck(args []string) {
 	for i, r := range results {
 		registered := "no"
 		owner := "-"
-		hasA := "no"
-		hasMX := "no"
+		aRecords := "-"
+		mxRecords := "-"
 		parked := "no"
 
 		if r.err != nil {
@@ -101,10 +102,18 @@ func runCheck(args []string) {
 				owner = r.status.Owner
 			}
 			if r.status.HasARecords {
-				hasA = "yes"
+				aRecords = strings.Join(r.status.ARecords, ", ")
 			}
 			if r.status.HasMXRecords {
-				hasMX = "yes"
+				mxParts := make([]string, len(r.status.MXRecords))
+				for j, mx := range r.status.MXRecords {
+					if len(mx.IPs) > 0 {
+						mxParts[j] = mx.Host + "(" + strings.Join(mx.IPs, ",") + ")"
+					} else {
+						mxParts[j] = mx.Host
+					}
+				}
+				mxRecords = strings.Join(mxParts, ", ")
 			}
 			if r.status.IsParked {
 				parked = "yes"
@@ -116,8 +125,8 @@ func runCheck(args []string) {
 			r.variation.Variant,
 			registered,
 			owner,
-			hasA,
-			hasMX,
+			aRecords,
+			mxRecords,
 			parked,
 		)
 	}
