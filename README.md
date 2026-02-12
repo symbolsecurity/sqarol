@@ -58,13 +58,13 @@ Generates variations, takes the top N by effectiveness, and checks each one for 
 $ sqarol check symbolsecurity.com -n 5
 Checking 5 variations...
 
-#  VARIANT             REGISTERED  OWNER  A   MX  PARKED
--  -------             ----------  -----  -   --  ------
-1  symbo1security.com  no          -      no  no  no
-2  symbolsocurity.com  no          -      no  no  no
-3  symbolsekurity.com  no          -      no  no  no
-4  sympolsecurity.com  no          -      no  no  no
-5  symbolsecuridy.com  no          -      no  no  no
+#  VARIANT             REGISTERED  OWNER  A  MX  PARKED
+-  -------             ----------  -----  -  --  ------
+1  symbo1security.com  no          -      -  -   no
+2  symbolsocurity.com  no          -      -  -   no
+3  symbolsekurity.com  no          -      -  -   no
+4  sympolsecurity.com  no          -      -  -   no
+5  symbolsecuridy.com  no          -      -  -   no
 
 Checked: 5/467 variations
 ```
@@ -108,7 +108,7 @@ Normalizes the input domain and runs all fuzzing techniques against it, returnin
 
 ### `Check(ctx context.Context, domain string) (*DomainCheck, error)`
 
-Queries DNS and WHOIS to determine whether a domain is registered, who owns it, whether it has A and MX records, and whether it appears to be parked. Registration is determined by the presence of NS records (the most reliable signal). Parking detection uses known parking nameserver suffixes and IP address prefixes. WHOIS is queried separately to extract the registrant owner, with automatic referral following for richer results. Concurrent WHOIS connections are throttled to avoid rate-limiting.
+Queries DNS and WHOIS to determine whether a domain is registered, who owns it, what A and MX records it has (including resolved IP addresses), and whether it appears to be parked. Registration is determined by the presence of NS records (the most reliable signal). Parking detection uses known parking nameserver suffixes and IP address prefixes. WHOIS is queried separately to extract the registrant owner, with automatic referral following for richer results. Concurrent WHOIS connections are throttled to avoid rate-limiting.
 
 ```go
 ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -118,7 +118,9 @@ check, err := sqarol.Check(ctx, "example.com")
 // check.IsRegistered   -> true
 // check.Owner          -> "Internet Assigned Numbers Authority"
 // check.HasARecords    -> true
+// check.ARecords       -> []string{"93.184.215.14"}
 // check.HasMXRecords   -> false
+// check.MXRecords      -> []sqarol.MXRecord{}
 // check.IsParked       -> false
 ```
 
@@ -138,12 +140,24 @@ type Variation struct {
 
 ```go
 type DomainCheck struct {
-    Domain       string `json:"domain"`                    // Queried domain name
-    IsRegistered bool   `json:"is_registered"`             // Whether the domain is registered (via NS lookup)
-    Owner        string `json:"owner,omitempty"`           // Registrant from WHOIS, if available
-    HasARecords  bool   `json:"has_a_records"`             // Whether the domain has IPv4 address records
-    HasMXRecords bool   `json:"has_mx_records"`            // Whether the domain has mail exchange records
-    IsParked     bool   `json:"is_parked"`                 // Whether the domain appears to be parked
+    Domain       string     `json:"domain"`                    // Queried domain name
+    IsRegistered bool       `json:"is_registered"`             // Whether the domain is registered (via NS lookup)
+    Owner        string     `json:"owner,omitempty"`           // Registrant from WHOIS, if available
+    HasARecords  bool       `json:"has_a_records"`             // Whether the domain has IPv4 address records
+    HasMXRecords bool       `json:"has_mx_records"`            // Whether the domain has mail exchange records
+    ARecords     []string   `json:"a_records,omitempty"`       // Resolved IPv4 addresses for the domain
+    MXRecords    []MXRecord `json:"mx_records,omitempty"`      // Resolved mail exchange records with their IPs
+    IsParked     bool       `json:"is_parked"`                 // Whether the domain appears to be parked
+}
+```
+
+### `MXRecord`
+
+```go
+type MXRecord struct {
+    Host string   `json:"host"`          // MX hostname
+    Pref uint16   `json:"pref"`          // MX preference (lower = higher priority)
+    IPs  []string `json:"ips,omitempty"` // Resolved IPv4 addresses of the MX host
 }
 ```
 
