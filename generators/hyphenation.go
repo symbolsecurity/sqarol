@@ -16,6 +16,14 @@ func hyphenation(domain string) (string, []string) {
 	tld := domain[dix:]
 
 	for i := 1; i < len(name); i++ {
+		// Skip if hyphen would be at start of a label (after a dot)
+		if i > 0 && name[i-1] == '.' {
+			continue
+		}
+		// Skip if hyphen would be at end of a label (before a dot)
+		if i < len(name) && name[i] == '.' {
+			continue
+		}
 		result = append(result, name[:i]+"-"+name[i:]+tld)
 	}
 

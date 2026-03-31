@@ -40,6 +40,10 @@ func withPrefix(domain string) (string, []string) {
 	tld := domain[dix:]
 
 	for _, prefix := range prefixes {
+		// Skip www prefix if name already starts with www
+		if prefix == "www" && strings.HasPrefix(name, "www") {
+			continue
+		}
 		result = append(result, prefix+"-"+name+tld)
 	}
 
