@@ -315,3 +315,264 @@ func TestCheck_JSONSerialization(t *testing.T) {
 		t.Error("expected 'mx_records' key to be absent for unregistered domain (omitempty)")
 	}
 }
+
+func TestCheck_WithOptions_DNSOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent test in short mode")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Test with only DNS option - should get A records but not owner or MX
+	check, err := sqarol.Check(ctx, "google.com", sqarol.WithDNS())
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	if check.Domain != "google.com" {
+		t.Errorf("expected Domain %q, got %q", "google.com", check.Domain)
+	}
+
+	// Should NOT be registered (registration check disabled)
+	if check.IsRegistered {
+		t.Error("expected IsRegistered to be false when only WithDNS option is used")
+	}
+
+	// Should have A records (DNS check enabled)
+	if !check.HasARecords {
+		t.Error("expected HasARecords to be true when WithDNS option is used")
+	}
+
+	// Should NOT have owner (owner check disabled)
+	if check.Owner != "" {
+		t.Error("expected Owner to be empty when owner check is disabled")
+	}
+
+	// Should NOT have MX records (MX check disabled)
+	if check.HasMXRecords {
+		t.Error("expected HasMXRecords to be false when MX check is disabled")
+	}
+
+	if len(check.MXRecords) != 0 {
+		t.Error("expected MXRecords to be empty when MX check is disabled")
+	}
+
+	// Should NOT have parking detection (parking check disabled)
+	if check.IsParked {
+		t.Error("expected IsParked to be false when parking check is disabled")
+	}
+}
+
+func TestCheck_WithOptions_OwnerOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent test in short mode")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Test with only Owner option - should attempt owner lookup but not DNS
+	check, err := sqarol.Check(ctx, "google.com", sqarol.WithOwner())
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	if check.Domain != "google.com" {
+		t.Errorf("expected Domain %q, got %q", "google.com", check.Domain)
+	}
+
+	// Should NOT be registered (registration check disabled)
+	if check.IsRegistered {
+		t.Error("expected IsRegistered to be false when only WithOwner option is used")
+	}
+
+	// Should NOT have A records (DNS check disabled)
+	if check.HasARecords {
+		t.Error("expected HasARecords to be false when DNS check is disabled")
+	}
+
+	if len(check.ARecords) != 0 {
+		t.Error("expected ARecords to be empty when DNS check is disabled")
+	}
+
+	// Owner may or may not be populated depending on WHOIS response
+	// (google.com often has privacy protection), but the check should run
+
+	// Should NOT have MX records (MX check disabled)
+	if check.HasMXRecords {
+		t.Error("expected HasMXRecords to be false when MX check is disabled")
+	}
+}
+
+func TestCheck_WithOptions_Multiple(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent test in short mode")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Test with multiple options - DNS and Registration
+	check, err := sqarol.Check(ctx, "google.com", sqarol.WithDNS(), sqarol.WithRegistration())
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	// Should be registered (registration check enabled)
+	if !check.IsRegistered {
+		t.Error("expected IsRegistered to be true when WithRegistration option is used")
+	}
+
+	// Should have A records (DNS check enabled)
+	if !check.HasARecords {
+		t.Error("expected HasARecords to be true when WithDNS option is used")
+	}
+
+	// Should NOT have owner (owner check disabled)
+	if check.Owner != "" {
+		t.Error("expected Owner to be empty when owner check is disabled")
+	}
+
+	// Should NOT have MX records (MX check disabled)
+	if check.HasMXRecords {
+		t.Error("expected HasMXRecords to be false when MX check is disabled")
+	}
+}
+
+func TestCheck_WithOptions_MXOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent test in short mode")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Test with only MX option
+	check, err := sqarol.Check(ctx, "google.com", sqarol.WithMX())
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	// Should NOT be registered
+	if check.IsRegistered {
+		t.Error("expected IsRegistered to be false when only WithMX option is used")
+	}
+
+	// Should NOT have A records
+	if check.HasARecords {
+		t.Error("expected HasARecords to be false when DNS check is disabled")
+	}
+
+	// Should have MX records (MX check enabled)
+	if !check.HasMXRecords {
+		t.Error("expected HasMXRecords to be true when WithMX option is used")
+	}
+
+	if len(check.MXRecords) == 0 {
+		t.Error("expected MXRecords to be populated when WithMX option is used")
+	}
+}
+
+func TestCheck_WithOptions_ParkingOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent test in short mode")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Test with only Parking option - needs both registration and DNS for detection
+	check, err := sqarol.Check(ctx, "google.com", sqarol.WithParking())
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	// Should be registered (parking check requires registration lookup)
+	if !check.IsRegistered {
+		t.Error("expected IsRegistered to be true when WithParking option is used (requires NS lookup)")
+	}
+
+	// Should have A records (parking check requires DNS lookup)
+	if !check.HasARecords {
+		t.Error("expected HasARecords to be true when WithParking option is used (requires A record lookup)")
+	}
+
+	// Parking detection should work for google.com (not parked)
+	if check.IsParked {
+		t.Error("expected google.com to not be parked")
+	}
+
+	// Should NOT have owner or MX
+	if check.Owner != "" {
+		t.Error("expected Owner to be empty when owner check is disabled")
+	}
+
+	if check.HasMXRecords {
+		t.Error("expected HasMXRecords to be false when MX check is disabled")
+	}
+}
+
+func TestCheck_WithOptions_AllExplicit(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent test in short mode")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Test with all options explicitly - should behave same as default
+	check, err := sqarol.Check(ctx, "google.com",
+		sqarol.WithOwner(),
+		sqarol.WithRegistration(),
+		sqarol.WithDNS(),
+		sqarol.WithMX(),
+		sqarol.WithParking(),
+	)
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	// All checks should be enabled
+	if !check.IsRegistered {
+		t.Error("expected IsRegistered to be true")
+	}
+
+	if !check.HasARecords {
+		t.Error("expected HasARecords to be true")
+	}
+
+	if !check.HasMXRecords {
+		t.Error("expected HasMXRecords to be true")
+	}
+
+	// Owner may or may not be populated depending on WHOIS response
+	// (google.com often has privacy protection), but the check should run
+
+	if check.IsParked {
+		t.Error("expected google.com to not be parked")
+	}
+
+	// Compare with default behavior
+	defaultCheck, err := sqarol.Check(ctx, "google.com")
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	// Both should have same basic results
+	if check.IsRegistered != defaultCheck.IsRegistered {
+		t.Error("IsRegistered mismatch between explicit all options and default")
+	}
+
+	if check.HasARecords != defaultCheck.HasARecords {
+		t.Error("HasARecords mismatch between explicit all options and default")
+	}
+
+	if check.HasMXRecords != defaultCheck.HasMXRecords {
+		t.Error("HasMXRecords mismatch between explicit all options and default")
+	}
+
+	if check.IsParked != defaultCheck.IsParked {
+		t.Error("IsParked mismatch between explicit all options and default")
+	}
+}
