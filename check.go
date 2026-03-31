@@ -97,6 +97,52 @@ type DomainCheck struct {
 	IsParked bool `json:"is_parked"`
 }
 
+// CheckOption configures which checks to perform during a domain check.
+type CheckOption func(*checkConfig)
+
+type checkConfig struct {
+	owner        bool
+	registration bool
+	dnsRecords   bool
+	mxRecords    bool
+	parking      bool
+}
+
+// WithOwner enables WHOIS owner lookup.
+func WithOwner() CheckOption {
+	return func(c *checkConfig) {
+		c.owner = true
+	}
+}
+
+// WithRegistration enables NS-based registration check.
+func WithRegistration() CheckOption {
+	return func(c *checkConfig) {
+		c.registration = true
+	}
+}
+
+// WithDNS enables A record lookup.
+func WithDNS() CheckOption {
+	return func(c *checkConfig) {
+		c.dnsRecords = true
+	}
+}
+
+// WithMX enables MX record lookup.
+func WithMX() CheckOption {
+	return func(c *checkConfig) {
+		c.mxRecords = true
+	}
+}
+
+// WithParking enables parking detection.
+func WithParking() CheckOption {
+	return func(c *checkConfig) {
+		c.parking = true
+	}
+}
+
 // Check queries DNS and WHOIS to determine whether a domain is
 // registered, who owns it, and what A and MX records it has.
 //
@@ -106,8 +152,26 @@ type DomainCheck struct {
 // extract the registrant owner, with automatic referral following for
 // richer results.
 //
+// By default, all checks are performed. Use the variadic options to
+// selectively enable specific checks (e.g., Check(ctx, domain, sqarol.WithDNS()))
+// to only check DNS records.
+//
 // It uses the provided context for cancellation and timeouts.
-func Check(ctx context.Context, domain string) (*DomainCheck, error) {
+func Check(ctx context.Context, domain string, opts ...CheckOption) (*DomainCheck, error) {
+	// Build configuration from options. If no options provided, enable all checks.
+	cfg := &checkConfig{}
+	if len(opts) == 0 {
+		cfg.owner = true
+		cfg.registration = true
+		cfg.dnsRecords = true
+		cfg.mxRecords = true
+		cfg.parking = true
+	} else {
+		for _, opt := range opts {
+			opt(cfg)
+		}
+	}
+
 	domain, err := normalize(domain)
 	if err != nil {
 		return nil, err
@@ -118,78 +182,88 @@ func Check(ctx context.Context, domain string) (*DomainCheck, error) {
 
 	// Look up NS records to determine registration.
 	var nsHosts []string
-	nss, err := resolver.LookupNS(ctx, domain)
-	if err == nil && len(nss) > 0 {
-		check.IsRegistered = true
-		for _, ns := range nss {
-			nsHosts = append(nsHosts, strings.TrimSuffix(ns.Host, "."))
+	if cfg.registration || cfg.parking {
+		nss, err := resolver.LookupNS(ctx, domain)
+		if err == nil && len(nss) > 0 {
+			check.IsRegistered = true
+			for _, ns := range nss {
+				nsHosts = append(nsHosts, strings.TrimSuffix(ns.Host, "."))
+			}
 		}
 	}
 
 	// Look up A records.
 	var ipv4s []string
-	ips, err := resolver.LookupHost(ctx, domain)
-	if err == nil {
-		for _, ip := range ips {
-			if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
-				check.HasARecords = true
-				ipv4s = append(ipv4s, ip)
+	if cfg.dnsRecords || cfg.parking {
+		ips, err := resolver.LookupHost(ctx, domain)
+		if err == nil {
+			for _, ip := range ips {
+				if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
+					check.HasARecords = true
+					ipv4s = append(ipv4s, ip)
+				}
 			}
 		}
+		check.ARecords = ipv4s
 	}
-	check.ARecords = ipv4s
 
 	// Look up MX records.
-	mxs, err := resolver.LookupMX(ctx, domain)
-	if err == nil && len(mxs) > 0 {
-		check.HasMXRecords = true
+	if cfg.mxRecords {
+		mxs, err := resolver.LookupMX(ctx, domain)
+		if err == nil && len(mxs) > 0 {
+			check.HasMXRecords = true
 
-		// Build MXRecord slice and resolve each MX host to IPv4 addresses in parallel.
-		mxRecords := make([]MXRecord, len(mxs))
-		var wg sync.WaitGroup
-		for i, mx := range mxs {
-			mxRecords[i] = MXRecord{
-				Host: strings.TrimSuffix(mx.Host, "."),
-				Pref: mx.Pref,
+			// Build MXRecord slice and resolve each MX host to IPv4 addresses in parallel.
+			mxRecords := make([]MXRecord, len(mxs))
+			var wg sync.WaitGroup
+			for i, mx := range mxs {
+				mxRecords[i] = MXRecord{
+					Host: strings.TrimSuffix(mx.Host, "."),
+					Pref: mx.Pref,
+				}
 			}
-		}
 
-		// Resolve each MX host to IPv4 addresses in parallel.
-		for i := range mxRecords {
-			wg.Add(1)
-			go func(idx int) {
-				defer wg.Done()
-				ips, err := resolver.LookupHost(ctx, mxRecords[idx].Host)
-				if err == nil {
-					for _, ip := range ips {
-						if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
-							mxRecords[idx].IPs = append(mxRecords[idx].IPs, ip)
+			// Resolve each MX host to IPv4 addresses in parallel.
+			for i := range mxRecords {
+				wg.Add(1)
+				go func(idx int) {
+					defer wg.Done()
+					ips, err := resolver.LookupHost(ctx, mxRecords[idx].Host)
+					if err == nil {
+						for _, ip := range ips {
+							if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
+								mxRecords[idx].IPs = append(mxRecords[idx].IPs, ip)
+							}
 						}
 					}
+				}(i)
+			}
+			wg.Wait()
+
+			// Sort by Pref ascending.
+			slices.SortFunc(mxRecords, func(a, b MXRecord) int {
+				if a.Pref < b.Pref {
+					return -1
 				}
-			}(i)
+				if a.Pref > b.Pref {
+					return 1
+				}
+				return 0
+			})
+
+			check.MXRecords = mxRecords
 		}
-		wg.Wait()
-
-		// Sort by Pref ascending.
-		slices.SortFunc(mxRecords, func(a, b MXRecord) int {
-			if a.Pref < b.Pref {
-				return -1
-			}
-			if a.Pref > b.Pref {
-				return 1
-			}
-			return 0
-		})
-
-		check.MXRecords = mxRecords
 	}
 
 	// Detect parking from NS hostnames and A record IPs.
-	check.IsParked = isParkingNS(nsHosts) || isParkingIP(ipv4s)
+	if cfg.parking {
+		check.IsParked = isParkingNS(nsHosts) || isParkingIP(ipv4s)
+	}
 
 	// Query WHOIS to extract owner information.
-	check.Owner = whoisOwner(ctx, domain)
+	if cfg.owner {
+		check.Owner = whoisOwner(ctx, domain)
+	}
 
 	return check, nil
 }
