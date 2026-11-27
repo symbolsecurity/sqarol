@@ -95,6 +95,12 @@ type DomainCheck struct {
 	// IsParked indicates whether the domain appears to be parked,
 	// based on known parking nameservers and IP addresses.
 	IsParked bool `json:"is_parked"`
+	// HasSPFRecord indicates whether the domain publishes an SPF TXT
+	// record (a record starting with "v=spf1").
+	HasSPFRecord bool `json:"has_spf_record"`
+	// HasDMARCRecord indicates whether the domain publishes a DMARC
+	// TXT record at _dmarc.<domain> (a record starting with "v=DMARC1").
+	HasDMARCRecord bool `json:"has_dmarc_record"`
 }
 
 // CheckOption configures which checks to perform during a domain check.
@@ -106,6 +112,7 @@ type checkConfig struct {
 	dnsRecords   bool
 	mxRecords    bool
 	parking      bool
+	emailAuth    bool
 }
 
 // WithOwner enables WHOIS owner lookup.
@@ -143,6 +150,13 @@ func WithParking() CheckOption {
 	}
 }
 
+// WithEmailAuth enables SPF and DMARC record detection.
+func WithEmailAuth() CheckOption {
+	return func(c *checkConfig) {
+		c.emailAuth = true
+	}
+}
+
 // Check queries DNS and WHOIS to determine whether a domain is
 // registered, who owns it, and what A and MX records it has.
 //
@@ -166,6 +180,7 @@ func Check(ctx context.Context, domain string, opts ...CheckOption) (*DomainChec
 		cfg.dnsRecords = true
 		cfg.mxRecords = true
 		cfg.parking = true
+		cfg.emailAuth = true
 	} else {
 		for _, opt := range opts {
 			opt(cfg)
@@ -258,6 +273,16 @@ func Check(ctx context.Context, domain string, opts ...CheckOption) (*DomainChec
 	// Detect parking from NS hostnames and A record IPs.
 	if cfg.parking {
 		check.IsParked = isParkingNS(nsHosts) || isParkingIP(ipv4s)
+	}
+
+	// Check SPF and DMARC TXT records.
+	if cfg.emailAuth {
+		if txts, err := resolver.LookupTXT(ctx, domain); err == nil {
+			check.HasSPFRecord = hasSPFRecord(txts)
+		}
+		if txts, err := resolver.LookupTXT(ctx, "_dmarc."+domain); err == nil {
+			check.HasDMARCRecord = hasDMARCRecord(txts)
+		}
 	}
 
 	// Query WHOIS to extract owner information.
@@ -425,6 +450,28 @@ func queryWhois(ctx context.Context, server, domain string) (string, error) {
 	}
 
 	return sb.String(), nil
+}
+
+// hasSPFRecord reports whether any of the given TXT records is an SPF
+// record (starts with "v=spf1", case-insensitive).
+func hasSPFRecord(txts []string) bool {
+	for _, txt := range txts {
+		if strings.HasPrefix(strings.ToLower(txt), "v=spf1") {
+			return true
+		}
+	}
+	return false
+}
+
+// hasDMARCRecord reports whether any of the given TXT records is a
+// DMARC record (starts with "v=DMARC1", case-insensitive).
+func hasDMARCRecord(txts []string) bool {
+	for _, txt := range txts {
+		if strings.HasPrefix(strings.ToLower(txt), "v=dmarc1") {
+			return true
+		}
+	}
+	return false
 }
 
 // isParkingNS reports whether any of the given nameserver hostnames

@@ -116,6 +116,11 @@ func TestCheck_KnownDomain(t *testing.T) {
 	if !hasResolvedMX {
 		t.Error("expected at least one MX record to have resolved IPs")
 	}
+
+	// google.com is expected to keep publishing an SPF record.
+	if !check.HasSPFRecord {
+		t.Error("expected google.com to have an SPF record")
+	}
 }
 
 func TestCheck_URL(t *testing.T) {

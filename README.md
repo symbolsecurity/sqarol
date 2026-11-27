@@ -108,7 +108,7 @@ Normalizes the input domain and runs all fuzzing techniques against it, returnin
 
 ### `Check(ctx context.Context, domain string) (*DomainCheck, error)`
 
-Queries DNS and WHOIS to determine whether a domain is registered, who owns it, what A and MX records it has (including resolved IP addresses), and whether it appears to be parked. Registration is determined by the presence of NS records (the most reliable signal). Parking detection uses known parking nameserver suffixes and IP address prefixes. WHOIS is queried separately to extract the registrant owner, with automatic referral following for richer results. Concurrent WHOIS connections are throttled to avoid rate-limiting.
+Queries DNS and WHOIS to determine whether a domain is registered, who owns it, what A and MX records it has (including resolved IP addresses), whether it appears to be parked, and whether it publishes SPF and DMARC records. Registration is determined by the presence of NS records (the most reliable signal). Parking detection uses known parking nameserver suffixes and IP address prefixes. SPF and DMARC are determined by looking up TXT records on the domain and on `_dmarc.<domain>`, respectively. WHOIS is queried separately to extract the registrant owner, with automatic referral following for richer results. Concurrent WHOIS connections are throttled to avoid rate-limiting.
 
 ```go
 ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -122,6 +122,8 @@ check, err := sqarol.Check(ctx, "example.com")
 // check.HasMXRecords   -> false
 // check.MXRecords      -> []sqarol.MXRecord{}
 // check.IsParked       -> false
+// check.HasSPFRecord   -> true
+// check.HasDMARCRecord -> true
 ```
 
 ### `Variation`
@@ -148,6 +150,8 @@ type DomainCheck struct {
     ARecords     []string   `json:"a_records,omitempty"`       // Resolved IPv4 addresses for the domain
     MXRecords    []MXRecord `json:"mx_records,omitempty"`      // Resolved mail exchange records with their IPs
     IsParked     bool       `json:"is_parked"`                 // Whether the domain appears to be parked
+    HasSPFRecord   bool     `json:"has_spf_record"`            // Whether the domain publishes an SPF TXT record
+    HasDMARCRecord bool     `json:"has_dmarc_record"`          // Whether the domain publishes a DMARC TXT record
 }
 ```
 
